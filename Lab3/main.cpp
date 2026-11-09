@@ -23,30 +23,44 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
         SendMessage(hToolBar, TB_BUTTONSTRUCTSIZE, (WPARAM)sizeof(TBBUTTON), 0);
 
-        TBADDBITMAP tbab;
-        tbab.hInst = HINST_COMMCTRL;
-        tbab.nID = IDB_STD_SMALL_COLOR;
-        SendMessage(hToolBar, TB_ADDBITMAP, (WPARAM)15, (LPARAM)&tbab);
+        //Встановлення розміру іконок 24x24 пікселі
+        SendMessage(hToolBar, TB_SETBITMAPSIZE, 0, MAKELPARAM(24, 24));
+
+        //Безпосереднє завантаження бітмапа з файлу на диску (без .rc файлів та windres)
+        HBITMAP hBitmap = (HBITMAP)LoadImage(NULL, L"res\\toolbar.bmp",
+            IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE | LR_CREATEDIBSECTION);
+
+        if (!hBitmap) {
+            MessageBox(hwnd, L"Не вдалося завантажити res\\toolbar.bmp!", L"Помилка", MB_OK | MB_ICONERROR);
+        }
+
+        //Створення списку зображень та додавання бітмапа (сіре тло RGB(192, 192, 192) стає прозорим)
+        HIMAGELIST hImages = ImageList_Create(24, 24, ILC_COLOR24 | ILC_MASK, 4, 0);
+        ImageList_AddMasked(hImages, hBitmap, RGB(192, 192, 192));
+        DeleteObject(hBitmap);
+
+        SendMessage(hToolBar, TB_SETIMAGELIST, 0, (LPARAM)hImages);
 
         TBBUTTON tbb[4];
         ZeroMemory(tbb, sizeof(tbb));
 
-        tbb[0].iBitmap = STD_FILENEW;
+        //Прив'язка індексів іконок (0 - крапка, 1 - лінія, 2 - прямокутник, 3 - еліпс)
+        tbb[0].iBitmap = 0;
         tbb[0].idCommand = IDM_POINT;
         tbb[0].fsState = TBSTATE_ENABLED;
         tbb[0].fsStyle = TBSTYLE_BUTTON;
 
-        tbb[1].iBitmap = STD_FILEOPEN;
+        tbb[1].iBitmap = 1;
         tbb[1].idCommand = IDM_LINE;
         tbb[1].fsState = TBSTATE_ENABLED;
         tbb[1].fsStyle = TBSTYLE_BUTTON;
 
-        tbb[2].iBitmap = STD_FILESAVE;
+        tbb[2].iBitmap = 2;
         tbb[2].idCommand = IDM_RECT;
         tbb[2].fsState = TBSTATE_ENABLED;
         tbb[2].fsStyle = TBSTYLE_BUTTON;
 
-        tbb[3].iBitmap = STD_UNDO;
+        tbb[3].iBitmap = 3;
         tbb[3].idCommand = IDM_ELLIPSE;
         tbb[3].fsState = TBSTATE_ENABLED;
         tbb[3].fsStyle = TBSTYLE_BUTTON;

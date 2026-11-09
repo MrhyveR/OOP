@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include "shape.h"
 
 //Shape

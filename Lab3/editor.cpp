@@ -1,3 +1,4 @@
+#define NOMINMAX
 #define UNICODE
 #define _UNICODE
 
@@ -18,7 +19,7 @@ ShapeObjectsEditor::~ShapeObjectsEditor() {
 void ShapeObjectsEditor::DrawRubberTrace(HWND hwnd, POINT p1, POINT p2) {
     HDC hdc = GetDC(hwnd);
     int oldRop = SetROP2(hdc, R2_NOTXORPEN);
-    HPEN hPen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));//Червоний слід (5 mod 4 = 1)
+    HPEN hPen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0)); // Червоний слід
     HGDIOBJ hOldPen = SelectObject(hdc, hPen);
     HGDIOBJ hOldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
 
@@ -107,12 +108,14 @@ void ShapeObjectsEditor::OnMouseMove(HWND hwnd, LPARAM lParam) {
 
 void ShapeObjectsEditor::OnLButtonUp(HWND hwnd, LPARAM lParam) {
     if (!isDrawing) return;
+
     DrawRubberTrace(hwnd, ptStart, ptEnd);
-    isDrawing = false;
-    ReleaseCapture();
 
     ptEnd.x = LOWORD(lParam);
     ptEnd.y = HIWORD(lParam);
+
+    isDrawing = false;
+    ReleaseCapture();
 
     if (shapeCount < 105) {
         if (currentType == IDM_POINT)
