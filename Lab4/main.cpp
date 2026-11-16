@@ -83,10 +83,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         PostQuitMessage(0);
         break;
 
+    case WM_ERASEBKGND:
+        return 1; //Повідомляємо систему, що фон оновлюється самостійно в OnPaint (прибирає мерехтіння)
+
     default:
         return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
     return 0;
+    
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
@@ -122,7 +126,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     HWND hwnd = CreateWindowEx(
         0, CLASS_NAME, L"Лабораторна робота №4 - Редактор об'єктів",
-        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
         NULL, hMenu, hInstance, NULL
     );
 
