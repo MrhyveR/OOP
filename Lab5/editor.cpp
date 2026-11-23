@@ -1,6 +1,10 @@
 #define NOMINMAX
 #include <windows.h>
+#include <windowsx.h>   // GET_X_LPARAM, GET_Y_LPARAM
 #include <commctrl.h>
+#include <commdlg.h>
+#include <cstdio>
+#include <string>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -124,8 +128,8 @@ LRESULT MyEditor::OnNotify(LPARAM lParam) {
 
 void MyEditor::OnLButtonDown(HWND hwnd, LPARAM lParam) {
     isDrawing = true;
-    ptStart.x = LOWORD(lParam);
-    ptStart.y = HIWORD(lParam);
+    ptStart.x = GET_X_LPARAM(lParam);
+    ptStart.y = GET_Y_LPARAM(lParam);
     ptEnd = ptStart;
     SetCapture(hwnd);
 }
@@ -133,8 +137,8 @@ void MyEditor::OnLButtonDown(HWND hwnd, LPARAM lParam) {
 void MyEditor::OnMouseMove(HWND hwnd, LPARAM lParam) {
     if (!isDrawing) return;
 
-    ptEnd.x = LOWORD(lParam);
-    ptEnd.y = HIWORD(lParam);
+    ptEnd.x = GET_X_LPARAM(lParam);
+    ptEnd.y = GET_Y_LPARAM(lParam);
 
     InvalidateRect(hwnd, NULL, FALSE);
 }
@@ -144,8 +148,8 @@ void MyEditor::OnLButtonUp(HWND hwnd, LPARAM lParam) {
     isDrawing = false;
     ReleaseCapture();
 
-    ptEnd.x = LOWORD(lParam);
-    ptEnd.y = HIWORD(lParam);
+    ptEnd.x = GET_X_LPARAM(lParam);
+    ptEnd.y = GET_Y_LPARAM(lParam);
 
     Shape* newShape = nullptr;
     switch (currentType) {
@@ -156,10 +160,10 @@ void MyEditor::OnLButtonUp(HWND hwnd, LPARAM lParam) {
             newShape = new LineShape(ptStart.x, ptStart.y, ptEnd.x, ptEnd.y);
             break;
         case IDM_RECT:
-        newShape = new RectangleShape(ptStart.x, ptStart.y, ptEnd.x, ptEnd.y);
+            newShape = new RectangleShape(ptStart.x, ptStart.y, ptEnd.x, ptEnd.y);
             break;
         case IDM_ELLIPSE:
-        newShape = new EllipseShape(ptStart.x, ptStart.y, ptEnd.x, ptEnd.y);
+            newShape = new EllipseShape(ptStart.x, ptStart.y, ptEnd.x, ptEnd.y);
             break;
         case IDM_LINECIRCLE:
             newShape = new LineWithCirclesShape(ptStart.x, ptStart.y, ptEnd.x, ptEnd.y);
@@ -212,6 +216,7 @@ void MyEditor::DrawRubberTrace(HDC hdc, POINT p1, POINT p2) {
     HGDIOBJ hOldPen = SelectObject(hdc, hPen);
     HBRUSH hBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
     HGDIOBJ hOldBrush = SelectObject(hdc, hBrush);
+    int oldBk = SetBkMode(hdc, TRANSPARENT);
 
     switch (currentType) {
         case IDM_POINT: {
@@ -227,26 +232,20 @@ void MyEditor::DrawRubberTrace(HDC hdc, POINT p1, POINT p2) {
             break;
         }
         case IDM_RECT: {
-            long left = std::min(p1.x, p2.x);
-            long top = std::min(p1.y, p2.y);
-            long right = std::max(p1.x, p2.x);
-            long bottom = std::max(p1.y, p2.y);
-            Rectangle(hdc, left, top, right, bottom);
+            Rectangle(hdc, std::min(p1.x, p2.x), std::min(p1.y, p2.y),
+                           std::max(p1.x, p2.x), std::max(p1.y, p2.y));
             break;
         }
         case IDM_ELLIPSE: {
-            long left = std::min(p1.x, p2.x);
-            long top = std::min(p1.y, p2.y);
-            long right = std::max(p1.x, p2.x);
-            long bottom = std::max(p1.y, p2.y);
-            Ellipse(hdc, left, top, right, bottom);
+            Ellipse(hdc, std::min(p1.x, p2.x), std::min(p1.y, p2.y),
+                         std::max(p1.x, p2.x), std::max(p1.y, p2.y));
             break;
         }
         case IDM_LINECIRCLE: {
             int r = 10;
             long dx = p2.x - p1.x;
             long dy = p2.y - p1.y;
-            double length = std::sqrt((double)(dx * dx + dy * dy));
+            double length = std::sqrt((double)dx * dx + (double)dy * dy);
 
             if (length > r) {
                 long startX = p1.x + (long)(r * dx / length);
@@ -268,25 +267,36 @@ void MyEditor::DrawRubberTrace(HDC hdc, POINT p1, POINT p2) {
             long x_max = std::max(p1.x, p2.x);
             long y_max = std::max(p1.y, p2.y);
 
-            int w = x_max - x_min;
-            int h = y_max - y_min;
-            int offset = w < h ? w / 3 : h / 3;
+            long w = x_max - x_min;
+            long h = y_max - y_min;
+            long offset = std::min(w, h) / 3;
             if (offset < 5) offset = 5;
 
-            RECT r1 = { x_min, y_min + offset, x_max - offset, y_max };
-            RECT r2 = { x_min + offset, y_min, x_max, y_max - offset };
+            RECT front = { x_min,          y_min + offset, x_max - offset, y_max };
+            RECT back  = { x_min + offset, y_min,          x_max,          y_max - offset };
 
-            Rectangle(hdc, r1.left, r1.top, r1.right, r1.bottom);
-            Rectangle(hdc, r2.left, r2.top, r2.right, r2.bottom);
+            // Передня грань
+            MoveToEx(hdc, front.left,  front.top,    NULL); LineTo(hdc, front.right, front.top);
+            MoveToEx(hdc, front.right, front.top,    NULL); LineTo(hdc, front.right, front.bottom);
+            MoveToEx(hdc, front.right, front.bottom, NULL); LineTo(hdc, front.left,  front.bottom);
+            MoveToEx(hdc, front.left,  front.bottom, NULL); LineTo(hdc, front.left,  front.top);
 
-            MoveToEx(hdc, r1.left, r1.top, NULL); LineTo(hdc, r2.left, r2.top);
-            MoveToEx(hdc, r1.right, r1.top, NULL); LineTo(hdc, r2.right, r2.top);
-            MoveToEx(hdc, r1.left, r1.bottom, NULL); LineTo(hdc, r2.left, r2.bottom);
-            MoveToEx(hdc, r1.right, r1.bottom, NULL); LineTo(hdc, r2.right, r2.bottom);
+            // Задня грань
+            MoveToEx(hdc, back.left,  back.top,    NULL); LineTo(hdc, back.right, back.top);
+            MoveToEx(hdc, back.right, back.top,    NULL); LineTo(hdc, back.right, back.bottom);
+            MoveToEx(hdc, back.right, back.bottom, NULL); LineTo(hdc, back.left,  back.bottom);
+            MoveToEx(hdc, back.left,  back.bottom, NULL); LineTo(hdc, back.left,  back.top);
+
+            // 4 ребра між гранями
+            MoveToEx(hdc, front.left,  front.top,    NULL); LineTo(hdc, back.left,  back.top);
+            MoveToEx(hdc, front.right, front.top,    NULL); LineTo(hdc, back.right, back.top);
+            MoveToEx(hdc, front.left,  front.bottom, NULL); LineTo(hdc, back.left,  back.bottom);
+            MoveToEx(hdc, front.right, front.bottom, NULL); LineTo(hdc, back.right, back.bottom);
             break;
         }
     }
 
+    SetBkMode(hdc, oldBk);
     SelectObject(hdc, hOldPen);
     SelectObject(hdc, hOldBrush);
     DeleteObject(hPen);
@@ -320,10 +330,10 @@ void MyEditor::SaveToFile(const char* filename) {
         else if (dynamic_cast<EllipseShape*>(pcshape[i])) typeName = "Ellipse";
         else if (dynamic_cast<LineShape*>(pcshape[i])) typeName = "Line";
 
-        out << typeName << " " 
-            << pcshape[i]->GetX1() << " " 
-            << pcshape[i]->GetY1() << " " 
-            << pcshape[i]->GetX2() << " " 
+        out << typeName << " "
+            << pcshape[i]->GetX1() << " "
+            << pcshape[i]->GetY1() << " "
+            << pcshape[i]->GetX2() << " "
             << pcshape[i]->GetY2() << "\n";
     }
     out.close();
@@ -344,7 +354,7 @@ void MyEditor::LoadFromFile(const char* filename) {
     std::string line;
     int lineNum = 0;
     bool hasError = false;
-    char errorMsg[256];
+    char errorMsg[256] = { 0 };
 
     while (std::getline(in, line)) {
         lineNum++;
@@ -371,7 +381,7 @@ void MyEditor::LoadFromFile(const char* filename) {
         else if (type == "LineCircle") s = new LineWithCirclesShape(x1, y1, x2, y2);
         else if (type == "Cube") s = new CubeShape(x1, y1, x2, y2);
         else {
-            sprintf(errorMsg, "Unknown shape name '%s' on line %d.", type.c_str(), lineNum);
+            snprintf(errorMsg, sizeof(errorMsg), "Unknown shape name '%s' on line %d.", type.c_str(), lineNum);
             hasError = true;
             break;
         }
@@ -392,8 +402,6 @@ void MyEditor::LoadFromFile(const char* filename) {
         //Очищаю те, що встигли створити у тимчасовому масиві
         for (int i = 0; i < tempCount; i++) delete tempShapes[i];
         delete[] tempShapes;
-
-        //Вивожу помилку з номером рядка, попередній малюнок залишається незмінним
         MessageBoxA(NULL, errorMsg, "File Load Error", MB_OK | MB_ICONERROR);
     } else {
         //Якщо все успішно - замінюємо поточний малюнок новими фігурами

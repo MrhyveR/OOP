@@ -1,138 +1,124 @@
 #define NOMINMAX
 #include "shape.h"
 
-Shape::Shape(long x1, long y1, long x2, long y2) : x1(x1), y1(y1), x2(x2), y2(y2) {}
-Shape::~Shape() {}
-
-PointShape::PointShape(long x1, long y1, long x2, long y2) : Shape(x1, y1, x2, y2) {}
 void PointShape::Show(HDC hdc) {
-    SetPixel(hdc, x2, y2, RGB(0, 0, 0));
+    COLORREF color = isSelected ? RGB(0, 0, 255) : RGB(0, 0, 0);
+    SetPixel(hdc, x2, y2, color);
 }
 
-LineShape::LineShape(long x1, long y1, long x2, long y2) : Shape(x1, y1, x2, y2) {}
 void LineShape::Show(HDC hdc) {
-    HPEN hPen = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
+    COLORREF color = isSelected ? RGB(0, 0, 255) : RGB(0, 0, 0);
+    int width = isSelected ? 2 : 1;
+
+    HPEN hPen = CreatePen(PS_SOLID, width, color);
     HGDIOBJ hOldPen = SelectObject(hdc, hPen);
+
     MoveToEx(hdc, x1, y1, NULL);
     LineTo(hdc, x2, y2);
+
     SelectObject(hdc, hOldPen);
     DeleteObject(hPen);
 }
 
-RectangleShape::RectangleShape(long x1, long y1, long x2, long y2) : Shape(x1, y1, x2, y2) {}
 void RectangleShape::Show(HDC hdc) {
-    HPEN hPen = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
-    HBRUSH hBrush = (HBRUSH)GetStockObject(WHITE_BRUSH); // Біле заповнення
+    COLORREF color = isSelected ? RGB(0, 0, 255) : RGB(0, 0, 0);
+    int width = isSelected ? 2 : 1;
+
+    HPEN hPen = CreatePen(PS_SOLID, width, color);
+    HBRUSH hBrush = (HBRUSH)GetStockObject(WHITE_BRUSH);
     HGDIOBJ hOldPen = SelectObject(hdc, hPen);
     HGDIOBJ hOldBrush = SelectObject(hdc, hBrush);
 
-    long left = x1 - std::abs(x2 - x1);
-    long right = x1 + std::abs(x2 - x1);
-    long top = y1 - std::abs(y2 - y1);
-    long bottom = y1 + std::abs(y2 - y1);
+    long left = std::min(x1, x2);
+    long top = std::min(y1, y2);
+    long right = std::max(x1, x2);
+    long bottom = std::max(y1, y2);
 
     Rectangle(hdc, left, top, right, bottom);
 
-    SelectObject(hdc, hOldPen);
     SelectObject(hdc, hOldBrush);
+    SelectObject(hdc, hOldPen);
     DeleteObject(hPen);
 }
 
-EllipseShape::EllipseShape(long x1, long y1, long x2, long y2) : Shape(x1, y1, x2, y2) {}
 void EllipseShape::Show(HDC hdc) {
-    HPEN hPen = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
-    HBRUSH hBrush = (HBRUSH)GetStockObject(NULL_BRUSH); //Без заповнення
+    COLORREF color = isSelected ? RGB(0, 0, 255) : RGB(0, 0, 0);
+    int width = isSelected ? 2 : 1;
+
+    HPEN hPen = CreatePen(PS_SOLID, width, color);
+    HBRUSH hBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
     HGDIOBJ hOldPen = SelectObject(hdc, hPen);
     HGDIOBJ hOldBrush = SelectObject(hdc, hBrush);
 
-    Ellipse(hdc, std::min(x1, x2), std::min(y1, y2), std::max(x1, x2), std::max(y1, y2));
+    long left = std::min(x1, x2);
+    long top = std::min(y1, y2);
+    long right = std::max(x1, x2);
+    long bottom = std::max(y1, y2);
 
-    SelectObject(hdc, hOldPen);
+    Ellipse(hdc, left, top, right, bottom);
+
     SelectObject(hdc, hOldBrush);
+    SelectObject(hdc, hOldPen);
     DeleteObject(hPen);
 }
 
-//LineWithCirclesShape (лінія від межі до межі кружечків)
-LineWithCirclesShape::LineWithCirclesShape(long x1, long y1, long x2, long y2) : Shape(x1, y1, x2, y2), LineShape(x1, y1, x2, y2), EllipseShape(x1, y1, x2, y2) {}
-
 void LineWithCirclesShape::Show(HDC hdc) {
-    int r = 10; //Радіус кружечків
-    long dx = x2 - x1;
-    long dy = y2 - y1;
+    long origX1 = x1, origY1 = y1, origX2 = x2, origY2 = y2;
+
+    int r = 10;
+    long dx = origX2 - origX1;
+    long dy = origY2 - origY1;
     double length = std::sqrt((double)(dx * dx + dy * dy));
 
     if (length > r) {
-        //Зменшує довжину ліній, щоб вони починалися/закінчувалися на краях кіл
-        long startX = x1 + (long)(r * dx / length);
-        long startY = y1 + (long)(r * dy / length);
-        long endX = x2 - (long)(r * dx / length);
-        long endY = y2 - (long)(r * dy / length);
+        long startX = origX1 + (long)(r * dx / length);
+        long startY = origY1 + (long)(r * dy / length);
+        long endX = origX2 - (long)(r * dx / length);
+        long endY = origY2 - (long)(r * dy / length);
 
-        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
-        HGDIOBJ hOldPen = SelectObject(hdc, hPen);
-        MoveToEx(hdc, startX, startY, NULL);
-        LineTo(hdc, endX, endY);
-        SelectObject(hdc, hOldPen);
-        DeleteObject(hPen);
+        Set(startX, startY, endX, endY);
+        LineShape::Show(hdc);
     }
 
-    //Малює кружечки на кінцях
-    EllipseShape startCircle(x1 - r, y1 - r, x1 + r, y1 + r);
-    startCircle.Show(hdc);
+    Set(origX1 - r, origY1 - r, origX1 + r, origY1 + r);
+    EllipseShape::Show(hdc);
 
-    EllipseShape endCircle(x2 - r, y2 - r, x2 + r, y2 + r);
-    endCircle.Show(hdc);
+    Set(origX2 - r, origY2 - r, origX2 + r, origY2 + r);
+    EllipseShape::Show(hdc);
+
+    Set(origX1, origY1, origX2, origY2);
 }
 
-//CubeShape (каркас куба без заповнення прямокутників)
-CubeShape::CubeShape(long x1, long y1, long x2, long y2) : Shape(x1, y1, x2, y2), RectangleShape(x1, y1, x2, y2), LineShape(x1, y1, x2, y2) {}
-
 void CubeShape::Show(HDC hdc) {
-    HPEN hPen = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
-    HBRUSH hBrush = (HBRUSH)GetStockObject(NULL_BRUSH); //Без заповнення
-    HGDIOBJ hOldPen = SelectObject(hdc, hPen);
-    HGDIOBJ hOldBrush = SelectObject(hdc, hBrush);
+    long origX1 = x1, origY1 = y1, origX2 = x2, origY2 = y2;
 
-    //Напівширина та напіввисота прямокутника
-    long hw = std::abs(x2 - x1);
-    long hh = std::abs(y2 - y1);
+    long x_min = std::min(origX1, origX2);
+    long y_min = std::min(origY1, origY2);
+    long x_max = std::max(origX1, origX2);
+    long y_max = std::max(origY1, origY2);
 
-    //Зсув для задньої грані (вправо і вгору)
-    long offsetX = hw / 2;
-    long offsetY = -hh / 2;
+    long w = x_max - x_min;
+    long h = y_max - y_min;
+    long offset = std::min(w, h) / 3;
+    if (offset < 5) offset = 5;
 
-    //Точні кути передньої грані
-    long f_left = x1 - hw;
-    long f_right = x1 + hw;
-    long f_top = y1 - hh;
-    long f_bottom = y1 + hh;
+    RECT front = { x_min,          y_min + offset, x_max - offset, y_max };
+    RECT back  = { x_min + offset, y_min,          x_max,          y_max - offset };
 
-    //Малює передній прямокутник
-    Rectangle(hdc, f_left, f_top, f_right, f_bottom);
+    Set(front.left,  front.top,    front.right, front.top);    LineShape::Show(hdc);
+    Set(front.right, front.top,    front.right, front.bottom); LineShape::Show(hdc);
+    Set(front.right, front.bottom, front.left,  front.bottom); LineShape::Show(hdc);
+    Set(front.left,  front.bottom, front.left,  front.top);    LineShape::Show(hdc);
 
-    //Точні кути задньої грані
-    long b_left = f_left + offsetX;
-    long b_right = f_right + offsetX;
-    long b_top = f_top + offsetY;
-    long b_bottom = f_bottom + offsetY;
+    Set(back.left,  back.top,    back.right, back.top);    LineShape::Show(hdc);
+    Set(back.right, back.top,    back.right, back.bottom); LineShape::Show(hdc);
+    Set(back.right, back.bottom, back.left,  back.bottom); LineShape::Show(hdc);
+    Set(back.left,  back.bottom, back.left,  back.top);    LineShape::Show(hdc);
 
-    //Малює задній прямокутник
-    Rectangle(hdc, b_left, b_top, b_right, b_bottom);
+    Set(front.left,  front.top,    back.left,   back.top);    LineShape::Show(hdc);
+    Set(front.right, front.top,    back.right,  back.top);    LineShape::Show(hdc);
+    Set(front.left,  front.bottom, back.left,   back.bottom); LineShape::Show(hdc);
+    Set(front.right, front.bottom, back.right,  back.bottom); LineShape::Show(hdc);
 
-    //З'єднувальні ребра між відповідними кутами граней
-    MoveToEx(hdc, f_left, f_top, NULL);
-    LineTo(hdc, b_left, b_top);
-
-    MoveToEx(hdc, f_right, f_top, NULL);
-    LineTo(hdc, b_right, b_top);
-
-    MoveToEx(hdc, f_left, f_bottom, NULL);
-    LineTo(hdc, b_left, b_bottom);
-
-    MoveToEx(hdc, f_right, f_bottom, NULL);
-    LineTo(hdc, b_right, b_bottom);
-
-    SelectObject(hdc, hOldPen);
-    SelectObject(hdc, hOldBrush);
-    DeleteObject(hPen);
+    Set(origX1, origY1, origX2, origY2);
 }

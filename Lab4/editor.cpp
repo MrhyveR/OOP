@@ -1,5 +1,13 @@
 #define NOMINMAX
+#ifndef UNICODE
+#define UNICODE
+#endif
+#ifndef _UNICODE
+#define _UNICODE
+#endif
+
 #include <windows.h>
+#include <windowsx.h>
 #include <commctrl.h>
 #include "editor.h"
 #include "resource.h"
@@ -68,9 +76,9 @@ void MyEditor::OnCommand(HWND hwnd, WPARAM wParam) {
             break;
         }
         case IDM_ABOUT: {
-            MessageBoxW(hwnd, 
-                L"Лабораторна робота №4\nВаріант №4", 
-                L"Про програму", 
+            MessageBoxW(hwnd,
+                L"Лабораторна робота №4\nВаріант №4",
+                L"Про програму",
                 MB_OK | MB_ICONINFORMATION);
             break;
         }
@@ -82,11 +90,11 @@ void MyEditor::OnCommand(HWND hwnd, WPARAM wParam) {
 
 LRESULT MyEditor::OnNotify(LPARAM lParam) {
     LPNMHDR pnmh = (LPNMHDR)lParam;
-    if (pnmh->code == TTN_GETDISPINFO) {
-        LPTOOLTIPTEXTA lpttt = (LPTOOLTIPTEXTA)lParam;
+    if (pnmh->code == TTN_GETDISPINFOW) {
+        LPNMTTDISPINFOW p = (LPNMTTDISPINFOW)lParam;
         const wchar_t* text = L"";
-        
-        switch (lpttt->hdr.idFrom) {
+
+        switch (p->hdr.idFrom) {
             case IDM_POINT:        text = L"Точка"; break;
             case IDM_LINE:         text = L"Лінія"; break;
             case IDM_RECT:         text = L"Прямокутник"; break;
@@ -94,17 +102,16 @@ LRESULT MyEditor::OnNotify(LPARAM lParam) {
             case IDM_LINECIRCLE:   text = L"Лінія з кружечками"; break;
             case IDM_CUBE:         text = L"Каркас куба"; break;
         }
-        
-        WideCharToMultiByte(CP_ACP, 0, text, -1, lpttt->szText, sizeof(lpttt->szText), NULL, NULL);
-        lpttt->lpszText = lpttt->szText;
+
+        p->lpszText = (LPWSTR)text;
     }
     return 0;
 }
 
 void MyEditor::OnLButtonDown(HWND hwnd, LPARAM lParam) {
     isDrawing = true;
-    ptStart.x = LOWORD(lParam);
-    ptStart.y = HIWORD(lParam);
+    ptStart.x = GET_X_LPARAM(lParam);
+    ptStart.y = GET_Y_LPARAM(lParam);
     ptEnd = ptStart;
     SetCapture(hwnd);
 }
@@ -112,8 +119,8 @@ void MyEditor::OnLButtonDown(HWND hwnd, LPARAM lParam) {
 void MyEditor::OnMouseMove(HWND hwnd, LPARAM lParam) {
     if (!isDrawing) return;
 
-    ptEnd.x = LOWORD(lParam);
-    ptEnd.y = HIWORD(lParam);
+    ptEnd.x = GET_X_LPARAM(lParam);
+    ptEnd.y = GET_Y_LPARAM(lParam);
 
     //FALSE означає не очищувати екран заздалегідь білим кольором (уникнемо миготіння та пропадіння)
     InvalidateRect(hwnd, NULL, FALSE);
@@ -124,8 +131,8 @@ void MyEditor::OnLButtonUp(HWND hwnd, LPARAM lParam) {
     isDrawing = false;
     ReleaseCapture();
 
-    ptEnd.x = LOWORD(lParam);
-    ptEnd.y = HIWORD(lParam);
+    ptEnd.x = GET_X_LPARAM(lParam);
+    ptEnd.y = GET_Y_LPARAM(lParam);
 
     Shape* newShape = nullptr;
     switch (currentType) {
@@ -167,21 +174,21 @@ void MyEditor::OnPaint(HWND hwnd) {
     HBITMAP hBitmap = CreateCompatibleBitmap(hdc, rc.right - rc.left, rc.bottom - rc.top);
     HBITMAP hOldBitmap = (HBITMAP)SelectObject(hdcMem, hBitmap);
 
-    //Заповнює білим фоном тільки буфер у пам'яті
+    //Білий фон тільки в буфері
     HBRUSH hWhiteBrush = (HBRUSH)GetStockObject(WHITE_BRUSH);
     FillRect(hdcMem, &rc, hWhiteBrush);
 
-    //Малює всі збережені фігури у буфер
+    //Усі збережені фігури
     for (int i = 0; i < shapeCount; i++) {
         pcshape[i]->Show(hdcMem);
     }
 
-    //Якщо малює зараз: додає гумовий слід у буфер
+    //Гумовий слід
     if (isDrawing) {
         DrawRubberTrace(hdcMem, ptStart, ptEnd);
     }
 
-    //Миттєво переносить готовий кадр з буфера на екран (ніякого мерехтіння)
+    //Готовий кадр на екран
     BitBlt(hdc, 0, 0, rc.right - rc.left, rc.bottom - rc.top, hdcMem, 0, 0, SRCCOPY);
 
     SelectObject(hdcMem, hOldBitmap);
@@ -197,6 +204,8 @@ void MyEditor::DrawRubberTrace(HDC hdc, POINT p1, POINT p2) {
     HBRUSH hBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
     HGDIOBJ hOldBrush = SelectObject(hdc, hBrush);
 
+    int oldBk = SetBkMode(hdc, TRANSPARENT);
+
     switch (currentType) {
         case IDM_POINT: {
             MoveToEx(hdc, p2.x - 5, p2.y, NULL);
@@ -211,22 +220,20 @@ void MyEditor::DrawRubberTrace(HDC hdc, POINT p1, POINT p2) {
             break;
         }
         case IDM_RECT: {
-            long left = p1.x - std::abs(p2.x - p1.x);
-            long right = p1.x + std::abs(p2.x - p1.x);
-            long top = p1.y - std::abs(p2.y - p1.y);
-            long bottom = p1.y + std::abs(p2.y - p1.y);
-            Rectangle(hdc, left, top, right, bottom);
+            Rectangle(hdc, std::min(p1.x, p2.x), std::min(p1.y, p2.y),
+                           std::max(p1.x, p2.x), std::max(p1.y, p2.y));
             break;
         }
         case IDM_ELLIPSE: {
-            Ellipse(hdc, std::min(p1.x, p2.x), std::min(p1.y, p2.y), std::max(p1.x, p2.x), std::max(p1.y, p2.y));
+            Ellipse(hdc, std::min(p1.x, p2.x), std::min(p1.y, p2.y),
+                         std::max(p1.x, p2.x), std::max(p1.y, p2.y));
             break;
         }
         case IDM_LINECIRCLE: {
             int r = 10;
             long dx = p2.x - p1.x;
             long dy = p2.y - p1.y;
-            double length = std::sqrt((double)(dx * dx + dy * dy));
+            double length = std::sqrt((double)dx * dx + (double)dy * dy);
 
             if (length > r) {
                 long startX = p1.x + (long)(r * dx / length);
@@ -243,37 +250,41 @@ void MyEditor::DrawRubberTrace(HDC hdc, POINT p1, POINT p2) {
             break;
         }
         case IDM_CUBE: {
-            long hw = std::abs(p2.x - p1.x);
-            long hh = std::abs(p2.y - p1.y);
-            long offsetX = hw / 2;
-            long offsetY = -hh / 2;
+            long x_min = std::min(p1.x, p2.x);
+            long y_min = std::min(p1.y, p2.y);
+            long x_max = std::max(p1.x, p2.x);
+            long y_max = std::max(p1.y, p2.y);
 
-            long f_left = p1.x - hw;
-            long f_right = p1.x + hw;
-            long f_top = p1.y - hh;
-            long f_bottom = p1.y + hh;
+            long w = x_max - x_min;
+            long h = y_max - y_min;
+            long offset = std::min(w, h) / 3;
+            if (offset < 5) offset = 5;
 
-            Rectangle(hdc, f_left, f_top, f_right, f_bottom);
+            RECT front = { x_min,          y_min + offset, x_max - offset, y_max };
+            RECT back  = { x_min + offset, y_min,          x_max,          y_max - offset };
 
-            long b_left = f_left + offsetX;
-            long b_right = f_right + offsetX;
-            long b_top = f_top + offsetY;
-            long b_bottom = f_bottom + offsetY;
+            //Передня грань
+            MoveToEx(hdc, front.left,  front.top,    NULL); LineTo(hdc, front.right, front.top);
+            MoveToEx(hdc, front.right, front.top,    NULL); LineTo(hdc, front.right, front.bottom);
+            MoveToEx(hdc, front.right, front.bottom, NULL); LineTo(hdc, front.left,  front.bottom);
+            MoveToEx(hdc, front.left,  front.bottom, NULL); LineTo(hdc, front.left,  front.top);
 
-            Rectangle(hdc, b_left, b_top, b_right, b_bottom);
+            //Задня грань
+            MoveToEx(hdc, back.left,  back.top,    NULL); LineTo(hdc, back.right, back.top);
+            MoveToEx(hdc, back.right, back.top,    NULL); LineTo(hdc, back.right, back.bottom);
+            MoveToEx(hdc, back.right, back.bottom, NULL); LineTo(hdc, back.left,  back.bottom);
+            MoveToEx(hdc, back.left,  back.bottom, NULL); LineTo(hdc, back.left,  back.top);
 
-            MoveToEx(hdc, f_left, f_top, NULL);
-            LineTo(hdc, b_left, b_top);
-            MoveToEx(hdc, f_right, f_top, NULL);
-            LineTo(hdc, b_right, b_top);
-            MoveToEx(hdc, f_left, f_bottom, NULL);
-            LineTo(hdc, b_left, b_bottom);
-            MoveToEx(hdc, f_right, f_bottom, NULL);
-            LineTo(hdc, b_right, b_bottom);
+            //4 ребра між гранями
+            MoveToEx(hdc, front.left,  front.top,    NULL); LineTo(hdc, back.left,  back.top);
+            MoveToEx(hdc, front.right, front.top,    NULL); LineTo(hdc, back.right, back.top);
+            MoveToEx(hdc, front.left,  front.bottom, NULL); LineTo(hdc, back.left,  back.bottom);
+            MoveToEx(hdc, front.right, front.bottom, NULL); LineTo(hdc, back.right, back.bottom);
             break;
         }
     }
 
+    SetBkMode(hdc, oldBk);
     SelectObject(hdc, hOldPen);
     SelectObject(hdc, hOldBrush);
     DeleteObject(hPen);
