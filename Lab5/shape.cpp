@@ -15,15 +15,23 @@ void LineShape::Show(HDC hdc) {
 }
 
 void RectangleShape::Show(HDC hdc) {
-    HPEN hPen = CreatePen(PS_SOLID, isSelected ? 2 : 1, isSelected ? RGB(0, 0, 255) : RGB(0, 0, 0));
-    HBRUSH hBrush = (HBRUSH)GetStockObject(WHITE_BRUSH); //Прямокутник із білим заповненням
-    HGDIOBJ oldPen = SelectObject(hdc, hPen);
-    HGDIOBJ oldBrush = SelectObject(hdc, hBrush);
+    COLORREF color = isSelected ? RGB(0, 0, 255) : RGB(0, 0, 0);
+    int width = isSelected ? 2 : 1;
 
-    Rectangle(hdc, std::min(x1, x2), std::min(y1, y2), std::max(x1, x2), std::max(y1, y2));
+    HPEN hPen = CreatePen(PS_SOLID, width, color);
+    HBRUSH hBrush = (HBRUSH)GetStockObject(useFill ? WHITE_BRUSH : NULL_BRUSH);
+    HGDIOBJ hOldPen = SelectObject(hdc, hPen);
+    HGDIOBJ hOldBrush = SelectObject(hdc, hBrush);
 
-    SelectObject(hdc, oldBrush);
-    SelectObject(hdc, oldPen);
+    long left = std::min(x1, x2);
+    long top = std::min(y1, y2);
+    long right = std::max(x1, x2);
+    long bottom = std::max(y1, y2);
+
+    Rectangle(hdc, left, top, right, bottom);
+
+    SelectObject(hdc, hOldBrush);
+    SelectObject(hdc, hOldPen);
     DeleteObject(hPen);
 }
 
@@ -69,6 +77,8 @@ void LineWithCirclesShape::Show(HDC hdc) {
 
 void CubeShape::Show(HDC hdc) {
     long origX1 = x1, origY1 = y1, origX2 = x2, origY2 = y2;
+    bool prevFill = useFill;
+    useFill = false; //Каркас куба без заповнення
 
     long x_min = std::min(origX1, origX2);
     long y_min = std::min(origY1, origY2);
@@ -83,23 +93,19 @@ void CubeShape::Show(HDC hdc) {
     RECT front = { x_min,          y_min + offset, x_max - offset, y_max };
     RECT back  = { x_min + offset, y_min,          x_max,          y_max - offset };
 
-    // Передня грань
-    Set(front.left,  front.top,    front.right, front.top);    LineShape::Show(hdc);
-    Set(front.right, front.top,    front.right, front.bottom); LineShape::Show(hdc);
-    Set(front.right, front.bottom, front.left,  front.bottom); LineShape::Show(hdc);
-    Set(front.left,  front.bottom, front.left,  front.top);    LineShape::Show(hdc);
+    //2 прямокутники через RectangleShape::Show
+    Set(front.left, front.top, front.right, front.bottom);
+    RectangleShape::Show(hdc);
 
-    // Задня грань
-    Set(back.left,  back.top,    back.right, back.top);    LineShape::Show(hdc);
-    Set(back.right, back.top,    back.right, back.bottom); LineShape::Show(hdc);
-    Set(back.right, back.bottom, back.left,  back.bottom); LineShape::Show(hdc);
-    Set(back.left,  back.bottom, back.left,  back.top);    LineShape::Show(hdc);
+    Set(back.left, back.top, back.right, back.bottom);
+    RectangleShape::Show(hdc);
 
-    // 4 з'єднувальні ребра
-    Set(front.left,  front.top,    back.left,  back.top);    LineShape::Show(hdc);
-    Set(front.right, front.top,    back.right, back.top);    LineShape::Show(hdc);
-    Set(front.left,  front.bottom, back.left,  back.bottom); LineShape::Show(hdc);
-    Set(front.right, front.bottom, back.right, back.bottom); LineShape::Show(hdc);
+    //4 лінії між гранями через LineShape::Show
+    Set(front.left,  front.top,    back.left,   back.top);    LineShape::Show(hdc);
+    Set(front.right, front.top,    back.right,  back.top);    LineShape::Show(hdc);
+    Set(front.left,  front.bottom, back.left,   back.bottom); LineShape::Show(hdc);
+    Set(front.right, front.bottom, back.right,  back.bottom); LineShape::Show(hdc);
 
+    useFill = prevFill;
     Set(origX1, origY1, origX2, origY2);
 }

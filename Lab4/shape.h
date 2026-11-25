@@ -53,9 +53,12 @@ public:
 };
 
 class RectangleShape : public virtual Shape {
+protected:
+    bool useFill;
+
 public:
-    RectangleShape(long x1 = 0, long y1 = 0, long x2 = 0, long y2 = 0)
-        : Shape(x1, y1, x2, y2) {}
+    RectangleShape(long x1 = 0, long y1 = 0, long x2 = 0, long y2 = 0, bool fill = true)
+        : Shape(x1, y1, x2, y2), useFill(fill) {}
 
     void Show(HDC hdc) override;
     const wchar_t* GetName() const override { return L"RectShape"; }
